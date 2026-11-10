@@ -1,0 +1,162 @@
+@page "/"
+@inject HttpClient Http
+
+<PageTitle>Catálogo | Biblioteca William Wallace</PageTitle>
+<div class="page-heading">
+    <div><p class="eyebrow">BIBLIOTECA ESCOLAR</p><h1>Un lugar para cada historia.</h1><p>Registra, consulta y actualiza los libros de nuestra biblioteca.</p></div>
+    <div class="count"><strong>@(cargaCorrecta ? libros.Count.ToString() : "—")</strong><span>libros en el catálogo</span></div>
+</div>
+
+@if (!string.IsNullOrEmpty(mensaje))
+{
+    <div class="notice @(esError ? "error" : "success")" role="alert" data-testid="mensaje">@mensaje</div>
+}
+
+<div class="workspace">
+    <section class="panel form-panel" aria-labelledby="form-title">
+        <p class="eyebrow">@(modelo.Id == 0 ? "NUEVO REGISTRO" : $"REGISTRO {modelo.Id:000}")</p>
+        <h2 id="form-title">@(modelo.Id == 0 ? "Agregar un libro" : "Editar libro")</h2>
+        <p class="muted">Todos los campos son obligatorios.</p>
+        <EditForm Model="modelo" OnValidSubmit="Guardar" FormName="libro" @key="modelo" novalidate>
+            <DataAnnotationsValidator />
+            <fieldset disabled="@ocupado">
+                <div class="field"><label for="nombre">Nombre del Libro</label><InputText id="nombre" @bind-Value="modelo.NombreLibro" maxlength="50" placeholder="Ej. El ojo del mundo" /><ValidationMessage For="() => modelo.NombreLibro" /></div>
+                <div class="field"><label for="autor">Autor</label><InputText id="autor" @bind-Value="modelo.Autor" maxlength="50" placeholder="Nombre del autor" /><ValidationMessage For="() => modelo.Autor" /></div>
+                <div class="field"><label for="paginas">Número de páginas</label><InputNumber id="paginas" @bind-Value="modelo.NumPaginas" min="1" step="1" /><ValidationMessage For="() => modelo.NumPaginas" /></div>
+                <div class="field"><label for="fecha">Fecha de Publicación</label><InputDate id="fecha" @bind-Value="modelo.FechaPublicacion" /><ValidationMessage For="() => modelo.FechaPublicacion" /></div>
+                <button type="submit" class="primary full-width">@(ocupado ? "Guardando…" : modelo.Id == 0 ? "Agregar libro" : "Actualizar libro")</button>
+                @if (modelo.Id != 0) { <button type="button" class="secondary full-width" @onclick="CancelarEdicion">Cancelar edición</button> }
+            </fieldset>
+        </EditForm>
+    </section>
+
+    <section class="panel catalog-panel" aria-labelledby="catalog-title">
+        <div class="section-heading"><div><p class="eyebrow">COLECCIÓN</p><h2 id="catalog-title">Catálogo de libros</h2></div><button type="button" class="secondary" @onclick="Recargar" disabled="@(ocupado || cargando)">Actualizar lista</button></div>
+        @if (cargando) { <p class="empty" role="status">Cargando libros…</p> }
+        else if (!cargaCorrecta)
+        {
+            <div class="empty error" role="alert"><strong>No se pudo cargar el catálogo.</strong><p>Revisa la conexión del servidor con BibliotecaDB y vuelve a intentarlo.</p></div>
+        }
+        else if (libros.Count == 0) { <p class="empty" data-testid="vacio">No existen libros en la biblioteca actualmente</p> }
+        else
+        {
+            <div class="table-scroll">
+                <table><caption class="sr-only">Libros almacenados en BibliotecaDB</caption><thead><tr><th scope="col">ID</th><th scope="col">Libro y autor</th><th scope="col">Páginas</th><th scope="col">Publicación</th><th scope="col">Acciones</th></tr></thead>
+                    <tbody>
+                    @foreach (var libro in libros)
+                    {
+                        <tr @key="libro.Id" data-testid="libro-row" class="@(modelo.Id == libro.Id ? "selected" : "")">
+                            <td class="book-id">@libro.Id.ToString("000")</td>
+                            <td><strong class="book-title">@libro.NombreLibro</strong><span class="book-author">@libro.Autor</span></td>
+                            <td>@libro.NumPaginas</td><td class="date">@libro.FechaPublicacion.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)</td>
+                            <td class="actions"><button type="button" class="text-button" @onclick="() => SeleccionarLibro(libro)" disabled="@ocupado" aria-label="Editar @libro.NombreLibro">EDITAR</button><button type="button" class="text-button danger" @onclick="() => SolicitarEliminar(libro)" disabled="@ocupado" aria-label="Eliminar @libro.NombreLibro">Eliminar</button></td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+            <p class="catalog-note">Selecciona EDITAR para llevar los datos de un libro al formulario.</p>
+        }
+        @if (libroPorEliminar is not null)
+        {
+            <div class="delete-confirm" role="alertdialog" aria-labelledby="delete-title"><h3 id="delete-title">Eliminar @libroPorEliminar.NombreLibro</h3><p>Se quitará este registro del catálogo.</p><button type="button" class="danger-button" @onclick="Eliminar" disabled="@ocupado">Confirmar eliminación</button><button type="button" class="secondary" @onclick="() => libroPorEliminar = null" disabled="@ocupado">Cancelar</button></div>
+        }
+    </section>
+</div>
+
+@code {
+    private const string Api = "api/Libro";
+    private List<Libro> libros = [];
+    private Libro modelo = new();
+    private Libro? libroPorEliminar;
+    private string mensaje = string.Empty;
+    private bool esError, ocupado, cargando, cargaCorrecta;
+
+    protected override async Task OnInitializedAsync() => await Listar();
+
+    private async Task Listar()
+    {
+        cargando = true;
+        try
+        {
+            libros = await Http.GetFromJsonAsync<List<Libro>>(Api) ?? [];
+            cargaCorrecta = true;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        { cargaCorrecta = false; }
+        finally { cargando = false; }
+    }
+
+    private async Task Recargar() { mensaje = string.Empty; await Listar(); }
+
+    private async Task Guardar()
+    {
+        if (ocupado) return;
+        ocupado = true;
+        try { if (modelo.Id == 0) await Agregar(); else await Actualizar(); }
+        finally { ocupado = false; }
+    }
+
+    private async Task Agregar()
+    {
+        try
+        {
+            using var respuesta = await Http.PostAsJsonAsync(Api, modelo);
+            respuesta.EnsureSuccessStatusCode();
+            Mostrar("Se ha ingresado un nuevo libro en la Biblioteca");
+            modelo = new();
+            await Listar();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        { Mostrar("Error al ingresar nuevo Libro", error: true); }
+    }
+
+    private async Task Actualizar()
+    {
+        var nombre = modelo.NombreLibro;
+        try
+        {
+            using var respuesta = await Http.PutAsJsonAsync($"{Api}/{modelo.Id}", modelo);
+            respuesta.EnsureSuccessStatusCode();
+            Mostrar($"Se ha actualizado el libro {nombre}");
+            modelo = new();
+            await Listar();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        { Mostrar($"Error al actualizar Libro {nombre}", error: true); }
+    }
+
+    private void SeleccionarLibro(Libro libro)
+    {
+        // Se edita una copia: cancelar no modifica los datos de la tabla.
+        modelo = new Libro { Id = libro.Id, NombreLibro = libro.NombreLibro, Autor = libro.Autor,
+            NumPaginas = libro.NumPaginas, FechaPublicacion = libro.FechaPublicacion };
+        mensaje = string.Empty;
+        libroPorEliminar = null;
+    }
+
+    private void CancelarEdicion() { modelo = new(); mensaje = string.Empty; }
+    private void SolicitarEliminar(Libro libro) { libroPorEliminar = libro; mensaje = string.Empty; }
+
+    private async Task Eliminar()
+    {
+        if (libroPorEliminar is null || ocupado) return;
+        var id = libroPorEliminar.Id;
+        ocupado = true;
+        try
+        {
+            using var respuesta = await Http.DeleteAsync($"{Api}/{id}");
+            respuesta.EnsureSuccessStatusCode();
+            if (modelo.Id == id) modelo = new();
+            libroPorEliminar = null;
+            Mostrar("Libro eliminado correctamente");
+            await Listar();
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        { Mostrar("Error al eliminar Libro", error: true); }
+        finally { ocupado = false; }
+    }
+
+    private void Mostrar(string texto, bool error = false) { mensaje = texto; esError = error; }
+}
+

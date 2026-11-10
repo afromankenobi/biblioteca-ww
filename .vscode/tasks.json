@@ -1,0 +1,7 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {"label":"Compilar biblioteca","type":"process","command":"dotnet","args":["build","BlazorBiblioteca.sln"],"group":{"kind":"build","isDefault":true},"problemMatcher":"$msCompile"},
+    {"label":"Ejecutar biblioteca","type":"process","command":"dotnet","args":["run","--project","src/BlazorBiblioteca","--launch-profile","https"],"problemMatcher":"$msCompile"}
+  ]
+}
