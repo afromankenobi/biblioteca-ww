@@ -21,3 +21,4 @@ docs/revision-*.md
 /evidencias/
 /scripts/empaquetar.py
 /scripts/generar_documentos.py
+.DS_Store
