@@ -1,20 +1,14 @@
 # Una biblioteca con Blazor y SQL Server
 
-Este proyecto salió de un taller de Programación Multiplataforma: una aplicación para administrar los libros de la biblioteca William Wallace. Había que agregar, listar, editar y eliminar registros con Blazor, y guardarlos en SQL Server usando Entity Framework Core.
+Aplicación para administrar los libros de la biblioteca William Wallace. Permite agregar, listar, editar y eliminar registros con Blazor y guardarlos en SQL Server mediante Entity Framework Core.
 
-Todos los comandos de esta guía se ejecutan desde la raíz del repositorio, donde está `BlazorBiblioteca.sln`, independientemente del nombre de la carpeta local.
+Ejecuta los comandos desde la raíz del proyecto, donde está `BlazorBiblioteca.sln`.
 
-## Por qué usé Windows y macOS
+## Entorno
 
-La ejecución original de Blazor se hizo en Windows ARM64, mientras que SQL Server quedó en un contenedor Docker sobre el Mac. Esa distribución tiene una razón concreta: la aplicación y el motor de base de datos tienen requisitos de arquitectura distintos.
+.NET 8 permite ejecutar la aplicación en Windows ARM64 y macOS. SQL Server 2022 [requiere un procesador x64 para su instalación en Windows](https://learn.microsoft.com/en-us/sql/sql-server/install/hardware-and-software-requirements-for-installing-sql-server-2022?view=sql-server-ver16). En Windows ARM64 se necesita una instancia SQL remota.
 
-.NET 8 tiene soporte para Windows ARM64, de modo que pude compilar y ejecutar allí el servidor ASP.NET Core y abrir el cliente Blazor en el navegador. El motor de SQL Server 2022, en cambio, [requiere un procesador x64 para su instalación en Windows](https://learn.microsoft.com/en-us/sql/sql-server/install/hardware-and-software-requirements-for-installing-sql-server-2022?view=sql-server-ver16). Tener Windows instalado no resuelve esa diferencia de arquitectura.
-
-Para completar el ejercicio con el equipo disponible, ejecuté la imagen Linux de SQL Server con `platform: linux/amd64` en Docker sobre el Mac ARM. Blazor se conectó a ese motor por TCP. La aplicación siguió usando SQL Server y Entity Framework Core, tal como pedía la pauta; cambió la ubicación del motor.
-
-La emulación permitió ejecutar y comprobar el CRUD en este laboratorio. Eso no la convierte en una plataforma soportada: [Microsoft admite sus contenedores de SQL Server en hosts Linux Intel/AMD x86-64 y excluye los entornos de emulación](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup?view=sql-server-ver16). En un equipo Windows x64 se puede instalar el motor localmente; con un servidor SQL x64 disponible también se puede usar una conexión remota desde Windows o macOS.
-
-El recorrido documentado en las capturas es, por tanto, navegador y aplicación en Windows, con la base en el Mac. Después también compilé el proyecto en macOS. La misma solución sirve para ambos sistemas; las capturas del CRUD corresponden a Windows.
+El proyecto incluye una configuración de Docker con `platform: linux/amd64`. En Mac ARM utiliza emulación, una configuración [no soportada por Microsoft para SQL Server](https://learn.microsoft.com/en-us/sql/linux/install-upgrade/setup?view=sql-server-ver16). Como alternativa, se puede conectar la aplicación a un servidor SQL x64 desde cualquiera de los dos sistemas.
 
 ## Preparar Windows
 
@@ -37,13 +31,13 @@ git --version
 code --version
 ```
 
-Necesito un SDK de la banda `8.0.4xx`. El proyecto tiene un `global.json` que pide `8.0.400` y permite parches de esa misma banda; se comprobó con `8.0.427`. Tener solamente .NET 9 o 10 no satisface esa configuración. La [guía de Microsoft para Windows](https://learn.microsoft.com/en-us/dotnet/core/install/windows) explica las opciones de instalación y las arquitecturas disponibles.
+Necesito un SDK de la banda `8.0.4xx`, como `8.0.427`. El archivo `global.json` pide `8.0.400` y permite parches de esa misma banda. Tener solamente .NET 9 o 10 no satisface esa configuración. La [guía de Microsoft para Windows](https://learn.microsoft.com/en-us/dotnet/core/install/windows) explica las opciones de instalación y las arquitecturas disponibles.
 
-Abro la raíz del repositorio en el editor. Si trabajo con una carpeta compartida que da problemas de permisos o rutas, uso una copia en el disco local de Windows.
+Abro la raíz del proyecto en el editor. Si trabajo con una carpeta compartida que da problemas de permisos o rutas, uso una copia en el disco local de Windows.
 
 ### Conectar SQL Server
 
-En Windows ARM64 uso una instancia remota. Para reproducir la distribución de este laboratorio, el Mac debe tener el contenedor preparado y el puerto accesible desde Windows; más abajo explico cómo levantarlo. En Windows x64 también puedo instalar SQL Server 2022 Developer con el motor de base de datos y autenticación mixta, y usarlo localmente.
+En Windows ARM64 uso una instancia remota. Si SQL Server está en el Mac, su puerto debe ser accesible desde Windows. En Windows x64 también puedo instalar SQL Server 2022 Developer con el motor de base de datos y autenticación mixta, y usarlo localmente.
 
 En una instancia nueva, me conecto con una cuenta administradora desde SSMS o desde la extensión SQL Server de Visual Studio Code y ejecuto, en este orden:
 
@@ -68,7 +62,7 @@ Para conectar Blazor, creo `src/BlazorBiblioteca/appsettings.Local.json` con est
 
 Reemplazo `IP_DEL_MAC` por la dirección accesible desde Windows. Si uso otra instancia, cambio también el puerto; para SQL local con TCP en 1433, el valor es `localhost,1433`. Una instancia nombrada puede usar `localhost\\SQLEXPRESS` dentro del JSON, si así está configurada. Cuando SQL está en el Mac, `localhost` en Windows sigue apuntando a Windows.
 
-El archivo local sobrescribe la cadena de `appsettings.json` y queda fuera de Git y del ZIP. Las credenciales y `TrustServerCertificate=True` corresponden al laboratorio. Para comprobar el puerto remoto antes de abrir la aplicación:
+El archivo local sobrescribe la cadena de `appsettings.json`. Las credenciales y `TrustServerCertificate=True` corresponden al laboratorio. Para comprobar el puerto remoto antes de abrir la aplicación:
 
 ```powershell
 Test-NetConnection -ComputerName IP_DEL_MAC -Port 14333
@@ -78,7 +72,7 @@ Test-NetConnection -ComputerName IP_DEL_MAC -Port 14333
 
 ### Compilar y abrir la aplicación
 
-Desde la raíz del repositorio:
+Desde la raíz del proyecto:
 
 ```powershell
 dotnet restore BlazorBiblioteca.sln --locked-mode
@@ -101,7 +95,7 @@ Agrego el [plugin `dotnet`](https://github.com/hensou/asdf-dotnet) una sola vez.
 asdf plugin add dotnet https://github.com/hensou/asdf-dotnet.git
 ```
 
-Desde la raíz del repositorio, instalo y selecciono el SDK:
+Desde la raíz del proyecto, instalo y selecciono el SDK:
 
 ```sh
 asdf install dotnet 8.0.427
@@ -164,9 +158,9 @@ Creo `src/BlazorBiblioteca/appsettings.Local.json` con la dirección publicada p
 }
 ```
 
-Si publiqué SQL en la IP privada del Mac para compartirlo con Windows, uso esa dirección en lugar de `127.0.0.1`. No reutilizo una dirección antigua sin comprobar el contenedor actual.
+Si publiqué SQL en la IP privada del Mac para compartirlo con Windows, uso esa dirección en lugar de `127.0.0.1`.
 
-Desde la misma carpeta compilo, pruebo y levanto la aplicación:
+Desde la misma carpeta compilo y levanto la aplicación:
 
 ```sh
 dotnet restore BlazorBiblioteca.sln --locked-mode
@@ -175,10 +169,9 @@ dotnet dev-certs https --trust
 dotnet run --project src/BlazorBiblioteca --launch-profile https
 ```
 
-Acepto en macOS la confianza del certificado de desarrollo y abro `https://localhost:7149`. El navegador del Mac consulta la misma API y la misma base que usaría Windows; el código no necesita una variante por sistema operativo.
+Acepto en macOS la confianza del certificado de desarrollo y abro `https://localhost:7149`.
 
 ## Cómo se conectan las piezas
-
 
 La solución usa .NET 8 y tiene tres proyectos:
 
@@ -196,9 +189,9 @@ También se aplica ese modo a `HeadOutlet`. En este proyecto desactivé el prere
 
 El cliente envía peticiones con `HttpClient` a `api/Libro`. El controlador recibe un `LibroDBContext` y usa Entity Framework Core para consultar o modificar la base. La cadena de conexión queda en el proyecto del servidor.
 
-## La tabla manda
+## Base de datos
 
-La base se llama `BibliotecaDB` y contiene una tabla `Libros`. La definición del ejercicio es bastante concreta:
+La base `BibliotecaDB` contiene la tabla `dbo.Libros`:
 
 ```sql
 CREATE TABLE dbo.Libros
@@ -211,7 +204,7 @@ CREATE TABLE dbo.Libros
 );
 ```
 
-En el modelo uso `DateOnly` para la fecha de publicación. En el contexto configuré los nombres como `varchar(50)` mediante `HasMaxLength(50).IsUnicode(false)`, y la fecha como `date`. Así el modelo de Entity Framework coincide con la tabla pedida.
+El modelo usa `DateOnly` para la fecha de publicación. El contexto configura los nombres como `varchar(50)` mediante `HasMaxLength(50).IsUnicode(false)`, y la fecha como `date`.
 
 El ID lo genera SQL Server. Al agregar un libro, el controlador rechaza una petición que intente enviar un ID distinto de cero. Al actualizar, comprueba que el ID de la URL coincida con el del cuerpo de la petición.
 
@@ -219,7 +212,7 @@ El ID lo genera SQL Server. Al agregar un libro, el controlador rechaza una peti
 
 `Home.razor` usa `EditForm`, `DataAnnotationsValidator` y un componente de entrada por campo: `InputText`, `InputNumber` e `InputDate`. El nombre y el autor son obligatorios, admiten hasta 50 caracteres y el número de páginas debe ser mayor que cero.
 
-La estructura del formulario es esta, omitiendo los campos para mostrar lo que conecta las piezas:
+El formulario llama a `Guardar` cuando sus datos son válidos:
 
 ```razor
 <EditForm Model="modelo" OnValidSubmit="Guardar"
@@ -250,8 +243,6 @@ modelo = new Libro
 
 Eso permite cancelar la edición sin cambiar lo que muestra la tabla. Si el formulario usara directamente el objeto de la lista, escribir en un campo también modificaría ese objeto antes de guardar.
 
-Para probar la actualización cambié *El ojo del mundo* de 824 a 825 páginas. La petición fue un `PUT` a `api/Libro/1`, y el registro mantuvo su ID. El cambio de páginas es solo parte de la demostración.
-
 Después de guardar, el formulario vuelve al modo de ingreso y consulta nuevamente la lista.
 
 ## Qué hace @key aquí
@@ -262,7 +253,7 @@ El formulario tiene otra clave: `@key="modelo"`. Cuando reemplazo el modelo por 
 
 La identidad de la fila en la base sigue dependiendo de la clave primaria y de `IDENTITY(1,1)`. `@key` se ocupa de la interfaz; no genera IDs en SQL Server.
 
-## Recargar también es parte de la prueba
+## Carga del catálogo
 
 La carga inicial ocurre en el método de ciclo de vida del componente:
 
@@ -270,17 +261,11 @@ La carga inicial ocurre en el método de ciclo de vida del componente:
 protected override async Task OnInitializedAsync() => await Listar();
 ```
 
-`Listar` hace un GET a la API. Si la consulta funciona y devuelve una lista vacía, aparece «No existen libros en la biblioteca actualmente». Si la consulta falla, la pantalla muestra que no pudo cargar el catálogo. Son dos resultados distintos que conviene poder reconocer al probar la conexión.
+`Listar` hace un GET a la API. Si la consulta funciona y devuelve una lista vacía, aparece «No existen libros en la biblioteca actualmente». Si la consulta falla, la pantalla muestra que no pudo cargar el catálogo.
 
-Para la demostración ingresé los tres libros y recargué la página. Los registros siguieron ahí.
+## Probar el CRUD
 
-Después actualicé el primer libro y eliminé *Juego de tronos*. Una consulta directa a SQL Server confirmó los dos registros restantes y las 825 páginas del ID 1. Las capturas corresponden a la ejecución del 9 de noviembre de 2026, con Blazor en Windows ARM64 y SQL Server en Docker sobre el Mac.
-
-## Comprobar el recorrido completo
-
-La comprobación se realiza desde el navegador, con la aplicación conectada a SQL Server. Las capturas explicadas muestran el CRUD solicitado y la consulta directa al motor confirma los datos guardados.
-
-Estos son los datos iniciales de la pauta:
+Datos de ejemplo:
 
 | Libro | Autor | Páginas | Publicación |
 | --- | --- | ---: | --- |
@@ -288,28 +273,20 @@ Estos son los datos iniciales de la pauta:
 | Orgullo o prejuicio | Jane Austen | 500 | 28/01/1813 |
 | Juego de tronos | George R.R. Martin | 800 | 01/08/1996 |
 
-Sí, el enunciado decía «Orgullo o prejuicio». Dejé ese nombre para mantener los datos del ejercicio.
-
-Para repetir la demostración en una base de práctica vacía:
+En una base de prueba vacía:
 
 1. Abro la aplicación y compruebo el mensaje de catálogo vacío con conexión válida.
 2. Envío el formulario sin nombre ni autor, con cero páginas y luego con fecha vacía para comprobar las validaciones.
-3. Agrego los tres libros y capturo el mensaje de ingreso y la lista con sus IDs.
+3. Agrego los tres libros y compruebo el mensaje de ingreso y la lista con sus IDs.
 4. Recargo la página y verifico que los registros siguen presentes.
 5. Pulso EDITAR en El ojo del mundo, pruebo cancelar una edición y después guardo el cambio de 824 a 825 páginas. El ID debe mantenerse.
 6. Elimino Juego de tronos y compruebo el mensaje y su ausencia en el catálogo.
 7. Ejecuto `sql/02-verificar-biblioteca.sql` y comparo la consulta con la pantalla.
 
-La base usada en la demostración ya conserva El ojo del mundo con 825 páginas y Orgullo o prejuicio con 500; el tercer libro fue eliminado. Antes de repetir el recorrido reviso los registros existentes para no duplicarlos ni borrar datos que quiera conservar. No hace falta vaciar la base para consultar el resultado final.
+Si la base ya tiene datos, uso registros de prueba para evitar duplicar o borrar libros que quiera conservar.
 
 Si el catálogo no carga, reviso la salida del servidor, la dirección y el puerto SQL y el inicio de sesión de `AdminBiblioteca`. Si falta `BibliotecaDB` o `Libros`, compruebo que los scripts se hayan ejecutado en la instancia correcta. El mensaje de error de conexión no equivale a una lista vacía.
 
-Con eso puedo seguir una operación de principio a fin: guardar desde el formulario, recargar, editar el mismo ID y consultar la base. Para una biblioteca de tres libros, alcanza para ver qué está haciendo cada pieza.
+## Referencias
 
-## La entrega y sus evidencias
-
-Git contiene el código, la configuración, los scripts de SQL Server y la documentación. El informe PDF y el ZIP de entrega se conservan localmente en `entrega/`; las capturas, resultados SQL y logs se conservan en `evidencias/`. Ambas carpetas están excluidas de Git y no se descargan al clonar el repositorio.
-
-La documentación oficial consultada se reúne en [fuentes](docs/fuentes.md). La implementación sigue las semanas 2, 3 y 4; la evaluación no exige agregar Bootstrap ni convertir la aplicación en PWA.
-
-El ZIP local contiene el proyecto, este README y el informe. El informe y las evidencias no son necesarios para compilar ni ejecutar la aplicación. El envío a la plataforma se realiza con el ZIP y sigue siendo un paso separado.
+[Documentación oficial consultada](docs/fuentes.md).
